@@ -22,7 +22,8 @@ This is useful for game servers that occasionally hang on shutdown and block res
 
 - Pterodactyl does **not** have an official plugin system — this runs **externally** using the API
 - Requires an **Application API key** (not a client key)
-- The container does **not** run inside Wings
+- Requires a **Client API key**
+- The container does **not** run inside Wings it runs standalone and uses Pterodactyl's API
 
 ---
 
@@ -47,6 +48,7 @@ docker run -d \
   --name ptero-watchdog \
   -e PANEL_URL=https://panel.example.com \
   -e API_KEY=PTLA_xxxxxxxxx \
+  -e CLIENT_KEYS=abc123:ptlc_xxx,def456:ptlc_yyy \
   -e SERVERS=abc123,def456 \
   -e KILL_AFTER_SECONDS=60 \
   -e CHECK_INTERVAL=5 \
@@ -68,6 +70,7 @@ services:
     environment:
       PANEL_URL: https://panel.example.com
       API_KEY: PTLA_xxxxxxxxx
+      CLIENT_KEYS: ptlc_xxx
       SERVERS: abc123,def456
       KILL_AFTER_SECONDS: 60
       CHECK_INTERVAL: 5
@@ -86,6 +89,7 @@ docker compose up -d
 |--------|---------|---------|------------|
 | `PANEL_URL` | ✅ | — | Base URL of your Pterodactyl panel |
 | `API_KEY` | ✅ | — | Application API key |
+| `CLIENT_KEYS` | ✅ | — | Client API Key |
 | `SERVERS` | ✅ | — | Comma-separated list of server UUIDs |
 | `KILL_AFTER_SECONDS` | ❌ | `60` | Seconds to wait before force-kill |
 | `CHECK_INTERVAL` | ❌ | `5` | Poll interval in seconds |
@@ -127,9 +131,11 @@ Docker uses this automatically via `HEALTHCHECK`.
 The Application API key must have:
 
 - `Servers → Read`
-- `Servers → Power`
+- `example: ptla_xxx`
 
-No other permissions are required.
+The Client API key:
+
+- `example: ptlc_xxx`
 
 ---
 
