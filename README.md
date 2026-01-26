@@ -60,13 +60,13 @@ docker run -d \
 ### Docker Compose (Recommended)
 
 ```yaml
-version: "3.8"
+name: pterodactyl-stop-watchdog
 
 services:
   watchdog:
     image: ptero-stop-watchdog
     container_name: ptero-watchdog
-    restart: unless-stopped
+    restart: always
     environment:
       PANEL_URL: https://panel.example.com
       API_KEY: PTLA_xxxxxxxxx
