@@ -4,38 +4,16 @@ const http = require("http");
 /* ===================== CONFIG ===================== */
 const PANEL_URL = process.env.PANEL_URL;
 const APP_API_KEY = process.env.API_KEY;
+const CLIENT_KEY = process.env.CLIENT_KEY;
 const SERVERS = process.env.SERVERS?.split(",") || [];
-const CLIENT_KEYS_RAW = process.env.CLIENT_KEYS || "";
 const KILL_AFTER_SECONDS = Number(process.env.KILL_AFTER_SECONDS || 60);
 const CHECK_INTERVAL = Number(process.env.CHECK_INTERVAL || 5);
 const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
 const HEALTHCHECK_PORT = Number(process.env.HEALTHCHECK_PORT || 3000);
 
 /* ===================== VALIDATION ===================== */
-if (!PANEL_URL || !APP_API_KEY || SERVERS.length === 0) {
+if (!PANEL_URL || !APP_API_KEY || !SERVERS.length || !CLIENT_KEY) {
   console.error("❌ Missing required environment variables");
-  process.exit(1);
-}
-
-/*
-CLIENT_KEYS format:
-serverId:ptlc_xxx,serverId2:ptlc_yyy
-*/
-const CLIENT_KEYS = Object.fromEntries(
-  CLIENT_KEYS_RAW
-    .split(",")
-    .filter(Boolean)
-    .map(entry => entry.split(":"))
-);
-
-// 🔥 Strict validation: ensure every server has a client key
-const missingKeys = SERVERS.filter(id => !CLIENT_KEYS[id]);
-
-if (missingKeys.length > 0) {
-  console.error(
-    "❌ Missing CLIENT_KEYS for the following servers:",
-    missingKeys.join(", ")
-  );
   process.exit(1);
 }
 
@@ -86,7 +64,6 @@ async function sendDiscord(message) {
 /* ===================== POWER (CLIENT API) ===================== */
 async function sendKill(serverId) {
   const name = await getServerName(serverId);
-  const clientKey = CLIENT_KEYS[serverId];
 
   console.log(`[${name} | ${serverId}] 💀 Force killing server`);
 
@@ -95,7 +72,7 @@ async function sendKill(serverId) {
     { signal: "kill" },
     {
       headers: {
-        Authorization: `Bearer ${clientKey}`,
+        Authorization: `Bearer ${CLIENT_KEY}`,
         Accept: "Application/vnd.pterodactyl.v1+json",
         "Content-Type": "application/json"
       }
