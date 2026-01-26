@@ -60,8 +60,6 @@ docker run -d \
 ### Docker Compose (Recommended)
 
 ```yaml
-name: pterodactyl-stop-watchdog
-
 services:
   watchdog:
     image: ptero-stop-watchdog
