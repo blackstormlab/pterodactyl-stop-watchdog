@@ -11,12 +11,12 @@ const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
 const HEALTHCHECK_PORT = Number(process.env.HEALTHCHECK_PORT || 3000);
 
 /* ===================== VALIDATION ===================== */
-if (!PANEL_URL || !SERVERS.length || !CLIENT_KEY) {
+if (!PANEL_URL || !CLIENT_KEY || !SERVERS.length) {
   console.error("❌ Missing required environment variables");
   process.exit(1);
 }
 
-/* ===================== API CLIENT ===================== */
+/* ===================== CLIENT API ===================== */
 const clientApi = axios.create({
   baseURL: `${PANEL_URL}/api/client`,
   headers: {
@@ -45,8 +45,8 @@ async function getServerName(serverId) {
 }
 
 async function getServerState(serverId) {
-  const res = await clientApi.get(`/servers/${serverId}`);
-  return res.data.attributes.status; // "running", "offline", "stopping", etc.
+  const res = await clientApi.get(`/servers/${serverId}/resources`);
+  return res.data.attributes.current_state;
 }
 
 /* ===================== DISCORD ===================== */
@@ -60,14 +60,16 @@ async function sendDiscord(message) {
   }
 }
 
-/* ===================== POWER (CLIENT API) ===================== */
+/* ===================== POWER ===================== */
 async function sendKill(serverId) {
   const name = await getServerName(serverId);
 
   console.log(`[${name} | ${serverId}] 💀 Force killing server`);
 
   try {
-    await clientApi.post(`/servers/${serverId}/power`, { signal: "kill" });
+    await clientApi.post(`/servers/${serverId}/power`, {
+      signal: "kill"
+    });
 
     await sendDiscord(
       `💀 **Server Force Killed**\n` +
@@ -76,19 +78,14 @@ async function sendKill(serverId) {
       `⏱ **Timeout:** ${KILL_AFTER_SECONDS}s`
     );
   } catch (err) {
-    logApiError(err);
-  }
-}
-
-/* ===================== API DEBUG ===================== */
-function logApiError(err) {
-  if (err.response) {
-    console.error("Request failed:", err.response.status);
-    console.error("Method:", err.response.config.method);
-    console.error("URL:", err.response.config.url);
-    console.error("Response body:", err.response.data);
-  } else {
-    console.error("Error:", err.message);
+    if (err.response) {
+      console.error("Request failed:", err.response.status);
+      console.error("Method:", err.response.config.method);
+      console.error("URL:", err.response.config.url);
+      console.error("Response body:", err.response.data);
+    } else {
+      console.error("Error:", err.message);
+    }
   }
 }
 
