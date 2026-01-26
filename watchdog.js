@@ -3,7 +3,6 @@ const http = require("http");
 
 /* ===================== CONFIG ===================== */
 const PANEL_URL = process.env.PANEL_URL;
-const APP_API_KEY = process.env.API_KEY;
 const CLIENT_KEY = process.env.CLIENT_KEY;
 const SERVERS = process.env.SERVERS?.split(",") || [];
 const KILL_AFTER_SECONDS = Number(process.env.KILL_AFTER_SECONDS || 60);
@@ -12,16 +11,16 @@ const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
 const HEALTHCHECK_PORT = Number(process.env.HEALTHCHECK_PORT || 3000);
 
 /* ===================== VALIDATION ===================== */
-if (!PANEL_URL || !APP_API_KEY || !SERVERS.length || !CLIENT_KEY) {
+if (!PANEL_URL || !SERVERS.length || !CLIENT_KEY) {
   console.error("❌ Missing required environment variables");
   process.exit(1);
 }
 
-/* ===================== API CLIENTS ===================== */
-const appApi = axios.create({
-  baseURL: `${PANEL_URL}/api/application`,
+/* ===================== API CLIENT ===================== */
+const clientApi = axios.create({
+  baseURL: `${PANEL_URL}/api/client`,
   headers: {
-    Authorization: `Bearer ${APP_API_KEY}`,
+    Authorization: `Bearer ${CLIENT_KEY}`,
     Accept: "Application/vnd.pterodactyl.v1+json",
     "Content-Type": "application/json"
   }
@@ -38,25 +37,16 @@ async function getServerName(serverId) {
     return serverNames.get(serverId);
   }
 
-  try {
-    const res = await appApi.get(`/servers/${serverId}`);
-    const name = res.data.attributes.name;
-    serverNames.set(serverId, name);
-    return name;
-  } catch (err) {
-    logApiError(err);
-    throw err; // IMPORTANT: propagate so loop logs it
-  }
+  const res = await clientApi.get(`/servers/${serverId}`);
+  const name = res.data.attributes.name;
+
+  serverNames.set(serverId, name);
+  return name;
 }
 
 async function getServerState(serverId) {
-  try {
-    const res = await appApi.get(`/servers/${serverId}/resources`);
-    return res.data.attributes.current_state;
-  } catch (err) {
-    logApiError(err);
-    throw err; // IMPORTANT: propagate so loop logs it
-  }
+  const res = await clientApi.get(`/servers/${serverId}`);
+  return res.data.attributes.status; // "running", "offline", "stopping", etc.
 }
 
 /* ===================== DISCORD ===================== */
@@ -77,17 +67,7 @@ async function sendKill(serverId) {
   console.log(`[${name} | ${serverId}] 💀 Force killing server`);
 
   try {
-    await axios.post(
-      `${PANEL_URL}/api/client/servers/${serverId}/power`,
-      { signal: "kill" },
-      {
-        headers: {
-          Authorization: `Bearer ${CLIENT_KEY}`,
-          Accept: "Application/vnd.pterodactyl.v1+json",
-          "Content-Type": "application/json"
-        }
-      }
-    );
+    await clientApi.post(`/servers/${serverId}/power`, { signal: "kill" });
 
     await sendDiscord(
       `💀 **Server Force Killed**\n` +
