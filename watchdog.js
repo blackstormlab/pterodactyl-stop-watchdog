@@ -38,16 +38,25 @@ async function getServerName(serverId) {
     return serverNames.get(serverId);
   }
 
-  const res = await appApi.get(`/servers/${serverId}`);
-  const name = res.data.attributes.name;
-
-  serverNames.set(serverId, name);
-  return name;
+  try {
+    const res = await appApi.get(`/servers/${serverId}`);
+    const name = res.data.attributes.name;
+    serverNames.set(serverId, name);
+    return name;
+  } catch (err) {
+    logApiError(err);
+    throw err; // IMPORTANT: propagate so loop logs it
+  }
 }
 
 async function getServerState(serverId) {
-  const res = await appApi.get(`/servers/${serverId}/resources`);
-  return res.data.attributes.current_state;
+  try {
+    const res = await appApi.get(`/servers/${serverId}/resources`);
+    return res.data.attributes.current_state;
+  } catch (err) {
+    logApiError(err);
+    throw err; // IMPORTANT: propagate so loop logs it
+  }
 }
 
 /* ===================== DISCORD ===================== */
@@ -87,15 +96,19 @@ async function sendKill(serverId) {
       `⏱ **Timeout:** ${KILL_AFTER_SECONDS}s`
     );
   } catch (err) {
-    // DEBUG OUTPUT
-    if (err.response) {
-      console.error("Request failed:", err.response.status);
-      console.error("Method:", err.response.config.method);
-      console.error("URL:", err.response.config.url);
-      console.error("Response body:", err.response.data);
-    } else {
-      console.error("Error:", err.message);
-    }
+    logApiError(err);
+  }
+}
+
+/* ===================== API DEBUG ===================== */
+function logApiError(err) {
+  if (err.response) {
+    console.error("Request failed:", err.response.status);
+    console.error("Method:", err.response.config.method);
+    console.error("URL:", err.response.config.url);
+    console.error("Response body:", err.response.data);
+  } else {
+    console.error("Error:", err.message);
   }
 }
 
