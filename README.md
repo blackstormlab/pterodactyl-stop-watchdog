@@ -175,7 +175,7 @@ MIT License — do whatever you want, just don’t blame us if a Minecraft serve
 PRs welcome!
 
 If you have ideas, bugs, or improvements:
+
 - Open an issue
 - Submit a pull request
 - Or fork it and go wild 🚀
-
