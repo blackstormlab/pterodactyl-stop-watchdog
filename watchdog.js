@@ -67,24 +67,36 @@ async function sendKill(serverId) {
 
   console.log(`[${name} | ${serverId}] 💀 Force killing server`);
 
-  await axios.post(
-    `${PANEL_URL}/api/client/servers/${serverId}/power`,
-    { signal: "kill" },
-    {
-      headers: {
-        Authorization: `Bearer ${CLIENT_KEY}`,
-        Accept: "Application/vnd.pterodactyl.v1+json",
-        "Content-Type": "application/json"
+  try {
+    await axios.post(
+      `${PANEL_URL}/api/client/servers/${serverId}/power`,
+      { signal: "kill" },
+      {
+        headers: {
+          Authorization: `Bearer ${CLIENT_KEY}`,
+          Accept: "Application/vnd.pterodactyl.v1+json",
+          "Content-Type": "application/json"
+        }
       }
-    }
-  );
+    );
 
-  await sendDiscord(
-    `💀 **Server Force Killed**\n` +
-    `🖥 **Name:** ${name}\n` +
-    `🆔 **ID:** \`${serverId}\`\n` +
-    `⏱ **Timeout:** ${KILL_AFTER_SECONDS}s`
-  );
+    await sendDiscord(
+      `💀 **Server Force Killed**\n` +
+      `🖥 **Name:** ${name}\n` +
+      `🆔 **ID:** \`${serverId}\`\n` +
+      `⏱ **Timeout:** ${KILL_AFTER_SECONDS}s`
+    );
+  } catch (err) {
+    // DEBUG OUTPUT
+    if (err.response) {
+      console.error("Request failed:", err.response.status);
+      console.error("Method:", err.response.config.method);
+      console.error("URL:", err.response.config.url);
+      console.error("Response body:", err.response.data);
+    } else {
+      console.error("Error:", err.message);
+    }
+  }
 }
 
 /* ===================== WATCHDOG ===================== */
