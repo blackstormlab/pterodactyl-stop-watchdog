@@ -34,7 +34,19 @@ This is useful for game servers that occasionally hang on shutdown and block res
 docker build -t ptero-stop-watchdog .
 ```
 
-Or use a prebuilt image if provided.
+Or use a prebuilt image from github or dockerhub.
+
+- github
+
+```bash
+docker pull ghcr.io/blackstormlab/pterodactyl-stop-watchdog:latest
+```
+
+- dockerhub
+
+```bash
+docker pull blackstormlab/pterodactyl-stop-watchdog:latest
+```
 
 ---
 
