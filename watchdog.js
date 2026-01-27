@@ -72,10 +72,10 @@ async function sendKill(serverId) {
     });
 
     await sendDiscord(
-      `💀 **Server Force Killed**\n` +
-      `🖥 **Name:** ${name}\n` +
-      `🆔 **ID:** \`${serverId}\`\n` +
-      `⏱ **Timeout:** ${KILL_AFTER_SECONDS}s`
+      `<:rip:1187945268470087742> **Server Force Killed**\n` +
+      `<:server:1465674404867342367> **Name:** ${name}\n` +
+      `:id: **ID:** \`${serverId}\`\n` +
+      `:timer: **Timeout:** ${KILL_AFTER_SECONDS}s`
     );
   } catch (err) {
     if (err.response) {
