@@ -8,13 +8,13 @@ This is useful for game servers that occasionally hang on shutdown and block res
 
 ## ✨ Features
 
-- ⏱ Configurable timeout after pressing **Stop**
-- 💀 Automatically sends **KILL** if server is still running
-- 📣 Optional **Discord webhook alerts**
-- ❤️ Built-in **Docker healthcheck endpoint**
-- 🧠 Caches server names (human-readable logs + alerts)
-- 🔐 Uses official **Pterodactyl Application API**
-- 🐳 Runs as a single lightweight Docker container
+- Configurable timeout after pressing **Stop**
+- Automatically sends **KILL** if server is still running
+- Optional **Discord webhook alerts**
+- Built-in **Docker healthcheck endpoint**
+- Caches server names (human-readable logs + alerts)
+- Uses official **Pterodactyl Application API**
+- Runs as a single lightweight Docker container
 
 ---
 
@@ -28,7 +28,7 @@ This is useful for game servers that occasionally hang on shutdown and block res
 
 ## 📦 Installation
 
-### 1️⃣ Build the Docker Image
+### Build the Docker Image
 
 ```bash
 docker build -t pterodactyl-stop-watchdog .
