@@ -31,7 +31,7 @@ This is useful for game servers that occasionally hang on shutdown and block res
 ### 1️⃣ Build the Docker Image
 
 ```bash
-docker build -t ptero-stop-watchdog .
+docker build -t pterodactyl-stop-watchdog .
 ```
 
 Or use a prebuilt image from github or dockerhub.
