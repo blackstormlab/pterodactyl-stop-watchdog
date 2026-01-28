@@ -151,8 +151,12 @@ The Client API key:
 Logs include both **server name and ID**:
 
 ```
+🛡 Pterodactyl Stop Watchdog started
+❤️ Healthcheck listening on :3000/health
 [Survival SMP | e8c2c1ab] ⏳ Stop detected, starting 60s timer
 [Survival SMP | e8c2c1ab] 💀 Force killing server
+[Survival SMP | e8c2c1ab] ⏳ Stop detected, starting 60s timer
+[Survival SMP | e8c2c1ab] ✅ Stopped normally
 ```
 
 ---
