@@ -7,7 +7,7 @@ const CLIENT_KEY = process.env.CLIENT_KEY;
 const SERVERS = process.env.SERVERS?.split(",").map(s => s.trim()).filter(Boolean) || [];
 const KILL_AFTER_SECONDS = Number(process.env.KILL_AFTER_SECONDS || 60);
 const CHECK_INTERVAL = Number(process.env.CHECK_INTERVAL || 5);
-const FORCE_KILL_GRACE_SECONDS = Number(process.env.FORCE_KILL_GRACE_SECONDS || 30);
+const FORCE_KILL_GRACE_SECONDS = Number(process.env.FORCE_KILL_GRACE_SECONDS || 0);
 const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
 const HEALTHCHECK_PORT = Number(process.env.HEALTHCHECK_PORT || 3000);
 
