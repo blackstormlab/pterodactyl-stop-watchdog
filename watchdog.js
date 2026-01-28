@@ -7,6 +7,7 @@ const CLIENT_KEY = process.env.CLIENT_KEY;
 const SERVERS = process.env.SERVERS?.split(",").map(s => s.trim()).filter(Boolean) || [];
 const KILL_AFTER_SECONDS = Number(process.env.KILL_AFTER_SECONDS || 60);
 const CHECK_INTERVAL = Number(process.env.CHECK_INTERVAL || 5);
+const FORCE_KILL_GRACE_SECONDS = Number(process.env.FORCE_KILL_GRACE_SECONDS || 30);
 const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
 const HEALTHCHECK_PORT = Number(process.env.HEALTHCHECK_PORT || 3000);
 
@@ -29,18 +30,15 @@ const clientApi = axios.create({
 /* ===================== STATE ===================== */
 const stopTimers = new Map();
 const serverNames = new Map();
+const forceKilled = new Map(); // serverId -> timestamp
 let lastLoopSuccess = Date.now();
 let httpServer;
 
 /* ===================== HELPERS ===================== */
 async function getServerName(serverId) {
-  if (serverNames.has(serverId)) {
-    return serverNames.get(serverId);
-  }
-
+  if (serverNames.has(serverId)) return serverNames.get(serverId);
   const res = await clientApi.get(`/servers/${serverId}`);
   const name = res.data.attributes.name;
-
   serverNames.set(serverId, name);
   return name;
 }
@@ -50,10 +48,19 @@ async function getServerState(serverId) {
   return res.data.attributes.current_state;
 }
 
+function isInForceKillGrace(serverId) {
+  if (!forceKilled.has(serverId)) return false;
+  const elapsed = (Date.now() - forceKilled.get(serverId)) / 1000;
+  if (elapsed > FORCE_KILL_GRACE_SECONDS) {
+    forceKilled.delete(serverId);
+    return false;
+  }
+  return true;
+}
+
 /* ===================== DISCORD (EMBEDS) ===================== */
 async function sendDiscordEmbed({ title, color, fields }) {
   if (!DISCORD_WEBHOOK_URL) return;
-
   try {
     await axios.post(DISCORD_WEBHOOK_URL, {
       embeds: [
@@ -61,9 +68,7 @@ async function sendDiscordEmbed({ title, color, fields }) {
           title,
           color,
           fields,
-          footer: {
-            text: "Pterodactyl Stop Watchdog"
-          },
+          footer: { text: "Pterodactyl Stop Watchdog" },
           timestamp: new Date().toISOString()
         }
       ]
@@ -76,24 +81,19 @@ async function sendDiscordEmbed({ title, color, fields }) {
 /* ===================== POWER ===================== */
 async function sendKill(serverId) {
   const name = await getServerName(serverId);
-
   console.log(`[${name} | ${serverId}] 💀 Force killing server`);
 
   try {
-    await clientApi.post(`/servers/${serverId}/power`, {
-      signal: "kill"
-    });
+    await clientApi.post(`/servers/${serverId}/power`, { signal: "kill" });
+    forceKilled.set(serverId, Date.now());
 
     await sendDiscordEmbed({
       title: "💀 Server Force Killed",
-      color: 15548997, // red
+      color: 15548997,
       fields: [
         { name: "Server", value: name, inline: true },
         { name: "Server ID", value: `\`${serverId}\``, inline: true },
-        {
-          name: "Reason",
-          value: `Server did not stop within ${KILL_AFTER_SECONDS} seconds`
-        }
+        { name: "Reason", value: `Server did not stop within ${KILL_AFTER_SECONDS} seconds` }
       ]
     });
   } catch (err) {
@@ -113,30 +113,24 @@ async function monitorServer(serverId) {
   const state = await getServerState(serverId);
   const name = await getServerName(serverId);
 
-  if (state === "stopping" && !stopTimers.has(serverId)) {
-    console.log(
-      `[${name} | ${serverId}] ⏳ Stop detected, starting ${KILL_AFTER_SECONDS}s timer`
-    );
+  // Ignore stopping if in force-kill grace period
+  if (state === "stopping" && !stopTimers.has(serverId) && !isInForceKillGrace(serverId)) {
+    console.log(`[${name} | ${serverId}] ⏳ Stop detected, starting ${KILL_AFTER_SECONDS}s timer`);
 
     await sendDiscordEmbed({
       title: "⏳ Stop Detected",
-      color: 16753920, // orange
+      color: 16753920,
       fields: [
         { name: "Server", value: name, inline: true },
         { name: "Server ID", value: `\`${serverId}\``, inline: true },
-        {
-          name: "Kill Timeout",
-          value: `${KILL_AFTER_SECONDS} seconds`
-        }
+        { name: "Kill Timeout", value: `${KILL_AFTER_SECONDS} seconds` }
       ]
     });
 
     const timer = setTimeout(async () => {
       try {
         const current = await getServerState(serverId);
-        if (current !== "offline") {
-          await sendKill(serverId);
-        }
+        if (current !== "offline") await sendKill(serverId);
       } catch (err) {
         console.error(`[${name} | ${serverId}] ❌ Kill check failed:`, err.message);
       } finally {
@@ -148,11 +142,17 @@ async function monitorServer(serverId) {
   }
 
   if (state === "offline" && stopTimers.has(serverId)) {
-    console.log(`[${name} | ${serverId}] ✅ Stopped normally`);
+    if (isInForceKillGrace(serverId)) {
+      console.log(`[${name} | ${serverId}] 🧊 Offline after force kill (grace period)`);
+      clearTimeout(stopTimers.get(serverId));
+      stopTimers.delete(serverId);
+      return;
+    }
 
+    console.log(`[${name} | ${serverId}] ✅ Stopped normally`);
     await sendDiscordEmbed({
       title: "✅ Server Stopped Normally",
-      color: 5763719, // green
+      color: 5763719,
       fields: [
         { name: "Server", value: name, inline: true },
         { name: "Server ID", value: `\`${serverId}\``, inline: true }
@@ -191,9 +191,7 @@ httpServer = http
 function shutdown(signal) {
   console.log(`🛑 Received ${signal}, shutting down gracefully`);
 
-  for (const timer of stopTimers.values()) {
-    clearTimeout(timer);
-  }
+  for (const timer of stopTimers.values()) clearTimeout(timer);
   stopTimers.clear();
 
   if (httpServer) {

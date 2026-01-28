@@ -9,6 +9,7 @@ This is useful for game servers that occasionally hang on shutdown and block res
 ## ✨ Features
 
 - Configurable timeout after pressing **Stop**
+- Configurable grace period after **kill** to prevent duplicate notifications
 - Automatically sends **KILL** if server is still running
 - Optional **Discord webhook alerts**
 - Built-in **Docker healthcheck endpoint**
@@ -61,6 +62,7 @@ docker run -d \
   -e CLIENT_KEYS=ptlc_xxx \
   -e SERVERS=abc123,def456 \
   -e KILL_AFTER_SECONDS=60 \
+  -e FORCE_KILL_GRACE_SECONDS=5 \
   -e CHECK_INTERVAL=5 \
   -e DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/... \
   --restart unless-stopped \
@@ -82,6 +84,7 @@ services:
       CLIENT_KEY: ptlc_xxx
       SERVERS: abc123,def456
       KILL_AFTER_SECONDS: 60
+      FORCE_KILL_GRACE_SECONDS: 5
       CHECK_INTERVAL: 5
       DISCORD_WEBHOOK_URL: https://discord.com/api/webhooks/...
 ```
@@ -100,6 +103,7 @@ docker compose up -d
 | `CLIENT_KEY` | ✅ | — | Client API Key |
 | `SERVERS` | ✅ | — | Comma-separated list of server UUIDs |
 | `KILL_AFTER_SECONDS` | ❌ | `60` | Seconds to wait before force-kill |
+| `FORCE_KILL_GRACE_SECONDS` | ❌ | `0` | Seconds to wait after force-kill to start checking again |
 | `CHECK_INTERVAL` | ❌ | `5` | Poll interval in seconds |
 | `DISCORD_WEBHOOK_URL` | ❌ | — | Discord webhook for alerts |
 | `HEALTHCHECK_PORT` | ❌ | `3000` | Healthcheck HTTP port |
@@ -138,7 +142,7 @@ Docker uses this automatically via `HEALTHCHECK`.
 
 The Client API key:
 
-- `example: ptlc_xxx`
+- `example key: ptlc_xxx`
 
 ---
 
