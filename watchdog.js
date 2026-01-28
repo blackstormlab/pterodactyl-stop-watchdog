@@ -4,7 +4,7 @@ const http = require("http");
 /* ===================== CONFIG ===================== */
 const PANEL_URL = process.env.PANEL_URL;
 const CLIENT_KEY = process.env.CLIENT_KEY;
-const SERVERS = process.env.SERVERS?.split(",") || [];
+const SERVERS = process.env.SERVERS?.split(",").map(s => s.trim()).filter(Boolean) || [];
 const KILL_AFTER_SECONDS = Number(process.env.KILL_AFTER_SECONDS || 60);
 const CHECK_INTERVAL = Number(process.env.CHECK_INTERVAL || 5);
 const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
@@ -30,6 +30,7 @@ const clientApi = axios.create({
 const stopTimers = new Map();
 const serverNames = new Map();
 let lastLoopSuccess = Date.now();
+let httpServer;
 
 /* ===================== HELPERS ===================== */
 async function getServerName(serverId) {
@@ -49,12 +50,24 @@ async function getServerState(serverId) {
   return res.data.attributes.current_state;
 }
 
-/* ===================== DISCORD ===================== */
-async function sendDiscord(message) {
+/* ===================== DISCORD (EMBEDS) ===================== */
+async function sendDiscordEmbed({ title, color, fields }) {
   if (!DISCORD_WEBHOOK_URL) return;
 
   try {
-    await axios.post(DISCORD_WEBHOOK_URL, { content: message });
+    await axios.post(DISCORD_WEBHOOK_URL, {
+      embeds: [
+        {
+          title,
+          color,
+          fields,
+          footer: {
+            text: "Pterodactyl Stop Watchdog"
+          },
+          timestamp: new Date().toISOString()
+        }
+      ]
+    });
   } catch (err) {
     console.error("⚠ Discord webhook failed:", err.message);
   }
@@ -71,12 +84,18 @@ async function sendKill(serverId) {
       signal: "kill"
     });
 
-    await sendDiscord(
-      `<:rip:1187945268470087742> **Server Force Killed**\n` +
-      `<:server:1465674404867342367> **Name:** ${name}\n` +
-      `:id: **ID:** \`${serverId}\`\n` +
-      `:timer: **Timeout:** ${KILL_AFTER_SECONDS}s`
-    );
+    await sendDiscordEmbed({
+      title: "💀 Server Force Killed",
+      color: 15548997, // red
+      fields: [
+        { name: "Server", value: name, inline: true },
+        { name: "Server ID", value: `\`${serverId}\``, inline: true },
+        {
+          name: "Reason",
+          value: `Server did not stop within ${KILL_AFTER_SECONDS} seconds`
+        }
+      ]
+    });
   } catch (err) {
     if (err.response) {
       console.error("Request failed:", err.response.status);
@@ -99,6 +118,19 @@ async function monitorServer(serverId) {
       `[${name} | ${serverId}] ⏳ Stop detected, starting ${KILL_AFTER_SECONDS}s timer`
     );
 
+    await sendDiscordEmbed({
+      title: "⏳ Stop Detected",
+      color: 16753920, // orange
+      fields: [
+        { name: "Server", value: name, inline: true },
+        { name: "Server ID", value: `\`${serverId}\``, inline: true },
+        {
+          name: "Kill Timeout",
+          value: `${KILL_AFTER_SECONDS} seconds`
+        }
+      ]
+    });
+
     const timer = setTimeout(async () => {
       try {
         const current = await getServerState(serverId);
@@ -117,6 +149,16 @@ async function monitorServer(serverId) {
 
   if (state === "offline" && stopTimers.has(serverId)) {
     console.log(`[${name} | ${serverId}] ✅ Stopped normally`);
+
+    await sendDiscordEmbed({
+      title: "✅ Server Stopped Normally",
+      color: 5763719, // green
+      fields: [
+        { name: "Server", value: name, inline: true },
+        { name: "Server ID", value: `\`${serverId}\``, inline: true }
+      ]
+    });
+
     clearTimeout(stopTimers.get(serverId));
     stopTimers.delete(serverId);
   }
@@ -130,7 +172,7 @@ async function loop() {
 }
 
 /* ===================== HEALTHCHECK ===================== */
-http
+httpServer = http
   .createServer((req, res) => {
     if (req.url === "/health") {
       const healthy = Date.now() - lastLoopSuccess < CHECK_INTERVAL * 3000;
@@ -144,6 +186,25 @@ http
   .listen(HEALTHCHECK_PORT, () => {
     console.log(`❤️ Healthcheck listening on :${HEALTHCHECK_PORT}/health`);
   });
+
+/* ===================== GRACEFUL SHUTDOWN ===================== */
+function shutdown(signal) {
+  console.log(`🛑 Received ${signal}, shutting down gracefully`);
+
+  for (const timer of stopTimers.values()) {
+    clearTimeout(timer);
+  }
+  stopTimers.clear();
+
+  if (httpServer) {
+    httpServer.close(() => process.exit(0));
+  } else {
+    process.exit(0);
+  }
+}
+
+process.on("SIGTERM", shutdown);
+process.on("SIGINT", shutdown);
 
 /* ===================== START ===================== */
 console.log("🛡 Pterodactyl Stop Watchdog started");
