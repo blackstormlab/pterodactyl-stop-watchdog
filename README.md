@@ -114,14 +114,10 @@ docker compose up -d
 
 When a server is force-killed, a message like this is sent:
 
-```
-💀 Server Force Killed
-🖥 Name: Survival SMP
-🆔 ID: e8c2c1ab
-⏱ Timeout: 60s
-```
 ![stop-detected](img/stop-detected.png)
+
 ![stopped-normally](img/stopped-normally.png)
+
 ![force-killed](img/force-killed.png)
 
 ---
