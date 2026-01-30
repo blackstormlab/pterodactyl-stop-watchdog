@@ -1,0 +1,13 @@
+services:
+  pterodactyl-stop-watchdog:
+    image: blackstormlab/pterodactyl-stop-watchdog:latest
+    container_name: pterodactyl-stop-watchdog
+    restart: always
+    environment:
+      PANEL_URL: https://panel.example.com
+      CLIENT_KEY: ptlc_xxx
+      SERVERS: abc123,def456
+      KILL_AFTER_SECONDS: 60
+      FORCE_KILL_GRACE_SECONDS: 5
+      CHECK_INTERVAL: 5
+      DISCORD_WEBHOOK_URL: https://discord.com/api/webhooks/...

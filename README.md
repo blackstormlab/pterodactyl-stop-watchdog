@@ -57,16 +57,16 @@ docker pull blackstormlab/pterodactyl-stop-watchdog:latest
 
 ```bash
 docker run -d \
-  --name ptero-watchdog \
+  --name pterodactyl-stop-watchdog \
   -e PANEL_URL=https://panel.example.com \
   -e CLIENT_KEYS=ptlc_xxx \
   -e SERVERS=abc123,def456 \
   -e KILL_AFTER_SECONDS=60 \
-  -e FORCE_KILL_GRACE_SECONDS=5 \
+  -e FORCE_KILL_GRACE_SECONDS=10 \
   -e CHECK_INTERVAL=5 \
   -e DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/... \
   --restart unless-stopped \
-  ptero-stop-watchdog
+  blackstormlab/pterodactyl-stop-watchdog:latest
 ```
 
 ---
@@ -75,16 +75,16 @@ docker run -d \
 
 ```yaml
 services:
-  watchdog:
-    image: ptero-stop-watchdog
-    container_name: ptero-watchdog
+  pterodactyl-stop-watchdog:
+    image: blackstormlab/pterodactyl-stop-watchdog:latest
+    container_name: pterodactyl-stop-watchdog
     restart: always
     environment:
       PANEL_URL: https://panel.example.com
       CLIENT_KEY: ptlc_xxx
       SERVERS: abc123,def456
       KILL_AFTER_SECONDS: 60
-      FORCE_KILL_GRACE_SECONDS: 5
+      FORCE_KILL_GRACE_SECONDS: 10
       CHECK_INTERVAL: 5
       DISCORD_WEBHOOK_URL: https://discord.com/api/webhooks/...
 ```
