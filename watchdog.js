@@ -1,3 +1,4 @@
+require("events").EventEmitter.defaultMaxListeners = 20;
 const axios = require("axios");
 const http = require("http");
 const https = require("https");
