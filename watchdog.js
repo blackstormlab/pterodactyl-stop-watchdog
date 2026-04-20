@@ -1,5 +1,6 @@
 const axios = require("axios");
 const http = require("http");
+const https = require("https");
 
 /* ===================== CONFIG ===================== */
 const PANEL_URL = process.env.PANEL_URL;
@@ -17,9 +18,16 @@ if (!PANEL_URL || !CLIENT_KEY || !SERVERS.length) {
   process.exit(1);
 }
 
+/* ===================== HTTP AGENT ===================== */
+const httpsAgent = new https.Agent({
+  keepAlive: true,
+  maxSockets: 10
+});
+
 /* ===================== CLIENT API ===================== */
 const clientApi = axios.create({
   baseURL: `${PANEL_URL}/api/client`,
+  httpsAgent,
   headers: {
     Authorization: `Bearer ${CLIENT_KEY}`,
     Accept: "Application/vnd.pterodactyl.v1+json",
@@ -30,7 +38,7 @@ const clientApi = axios.create({
 /* ===================== STATE ===================== */
 const stopTimers = new Map();
 const serverNames = new Map();
-const forceKilled = new Map(); // serverId -> timestamp
+const forceKilled = new Map();
 let lastLoopSuccess = Date.now();
 let httpServer;
 
@@ -58,7 +66,11 @@ function isInForceKillGrace(serverId) {
   return true;
 }
 
-/* ===================== DISCORD (EMBEDS) ===================== */
+function sleep(seconds) {
+  return new Promise(resolve => setTimeout(resolve, seconds * 1000));
+}
+
+/* ===================== DISCORD ===================== */
 async function sendDiscordEmbed({ title, color, fields }) {
   if (!DISCORD_WEBHOOK_URL) return;
   try {
@@ -113,7 +125,6 @@ async function monitorServer(serverId) {
   const state = await getServerState(serverId);
   const name = await getServerName(serverId);
 
-  // Ignore stopping if in force-kill grace period
   if (state === "stopping" && !stopTimers.has(serverId) && !isInForceKillGrace(serverId)) {
     console.log(`[${name} | ${serverId}] ⏳ Stop detected, starting ${KILL_AFTER_SECONDS}s timer`);
 
@@ -150,6 +161,7 @@ async function monitorServer(serverId) {
     }
 
     console.log(`[${name} | ${serverId}] ✅ Stopped normally`);
+
     await sendDiscordEmbed({
       title: "✅ Server Stopped Normally",
       color: 5763719,
@@ -207,10 +219,21 @@ process.on("SIGINT", shutdown);
 /* ===================== START ===================== */
 console.log("🛡 Pterodactyl Stop Watchdog started");
 
-setInterval(async () => {
-  try {
-    await loop();
-  } catch (err) {
-    console.error("❌ Loop error:", err.message);
+async function startLoop() {
+  while (true) {
+    const start = Date.now();
+
+    try {
+      await loop();
+    } catch (err) {
+      console.error("❌ Loop error:", err.message);
+    }
+
+    const elapsed = (Date.now() - start) / 1000;
+    const delay = Math.max(0, CHECK_INTERVAL - elapsed);
+
+    await sleep(delay);
   }
-}, CHECK_INTERVAL * 1000);
+}
+
+startLoop();
