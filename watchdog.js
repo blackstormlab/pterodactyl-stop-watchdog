@@ -88,7 +88,7 @@ async function sendKill(serverId) {
     forceKilled.set(serverId, Date.now());
 
     await sendDiscordEmbed({
-      title: "<:rip:1187945268470087742:> Server Force Killed",
+      title: ":dizzy_face: Server Force Killed",
       color: 15548997,
       fields: [
         { name: "Server", value: name, inline: true },
