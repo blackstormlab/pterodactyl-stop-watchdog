@@ -40,33 +40,39 @@ if (!PANEL_URL || !CLIENT_KEY || !SERVERS.length) {
 /* ===================== HTTP AGENTS ===================== */
 
 /*
- * Keep Pterodactyl and Discord connections separate.
- * This prevents the Discord requests from sharing
- * the same socket pool as the Pterodactyl API.
+ * Keep-alive is intentionally disabled.
+ *
+ * The watchdog makes relatively few requests, so there is
+ * little benefit to keeping persistent TLS connections alive.
+ *
+ * This also avoids the TLSSocket listener buildup observed
+ * with Axios/follow-redirects.
  */
 
 const pterodactylAgent = new https.Agent({
-  keepAlive: true,
-  maxSockets: 5,
-  maxFreeSockets: 2,
-  timeout: 30000
+  keepAlive: false
 });
 
 const discordAgent = new https.Agent({
-  keepAlive: true,
-  maxSockets: 2,
-  maxFreeSockets: 1,
-  timeout: 30000
+  keepAlive: false
 });
 
 /* ===================== CLIENT API ===================== */
 
 const clientApi = axios.create({
   baseURL: `${PANEL_URL}/api/client`,
+
   httpsAgent: pterodactylAgent,
 
-  // Prevent requests from hanging forever.
+  // Prevent requests from hanging indefinitely.
   timeout: 10000,
+
+  /*
+   * Pterodactyl API requests should not require redirects.
+   * Disabling them also prevents Axios from using its
+   * follow-redirects handling for these requests.
+   */
+  maxRedirects: 0,
 
   headers: {
     Authorization: `Bearer ${CLIENT_KEY}`,
@@ -79,7 +85,13 @@ const clientApi = axios.create({
 
 const discordApi = axios.create({
   httpsAgent: discordAgent,
+
   timeout: 10000,
+
+  /*
+   * Discord webhook URLs should not require redirects.
+   */
+  maxRedirects: 0,
 
   headers: {
     "Content-Type": "application/json"
@@ -99,6 +111,10 @@ let shuttingDown = false;
 /* ===================== HELPERS ===================== */
 
 async function getServerName(serverId) {
+  /*
+   * Server names are cached so we don't request the
+   * server information on every watchdog cycle.
+   */
   if (serverNames.has(serverId)) {
     return serverNames.get(serverId);
   }
@@ -116,8 +132,8 @@ async function getServerName(serverId) {
 
 async function getServerState(serverId) {
   /*
-   * The client resources endpoint provides the
-   * accurate current server state.
+   * Use the resources endpoint because it provides
+   * the accurate current server state.
    */
   const res = await clientApi.get(
     `/servers/${serverId}/resources`
@@ -136,6 +152,7 @@ function isInForceKillGrace(serverId) {
 
   if (elapsed > FORCE_KILL_GRACE_SECONDS) {
     forceKilled.delete(serverId);
+
     return false;
   }
 
@@ -190,7 +207,8 @@ async function sendDiscordEmbed({
 /* ===================== POWER ===================== */
 
 async function sendKill(serverId) {
-  const name = await getServerName(serverId);
+  const name =
+    await getServerName(serverId);
 
   console.log(
     `[${name} | ${serverId}] 💀 Force killing server`
@@ -205,9 +223,10 @@ async function sendKill(serverId) {
     );
 
     /*
-     * Record when the force kill happened.
-     * This prevents the resulting offline state
-     * from being reported as a normal stop.
+     * Record the time of the force kill.
+     *
+     * This prevents the resulting offline state from
+     * being reported as a normal stop.
      */
     forceKilled.set(
       serverId,
@@ -281,7 +300,7 @@ async function monitorServer(serverId) {
     await getServerName(serverId);
 
   /*
-   * Server has entered stopping state.
+   * Detect a stop request.
    */
   if (
     state === "stopping" &&
@@ -325,6 +344,10 @@ async function monitorServer(serverId) {
           const current =
             await getServerState(serverId);
 
+          /*
+           * If the server is still not offline,
+           * force kill it.
+           */
           if (current !== "offline") {
             await sendKill(serverId);
           }
@@ -350,7 +373,7 @@ async function monitorServer(serverId) {
   }
 
   /*
-   * Server has reached offline state.
+   * Server reached offline state.
    */
   if (
     state === "offline" &&
@@ -358,8 +381,8 @@ async function monitorServer(serverId) {
   ) {
 
     /*
-     * If the server was force killed,
-     * suppress the normal stop notification.
+     * If the server was force killed, suppress
+     * the normal stop notification.
      */
     if (isInForceKillGrace(serverId)) {
       console.log(
@@ -409,7 +432,7 @@ async function monitorServer(serverId) {
   }
 }
 
-/* ===================== LOOP ===================== */
+/* ===================== WATCHDOG LOOP ===================== */
 
 async function loop() {
   for (const serverId of SERVERS) {
@@ -457,7 +480,6 @@ httpServer = http
 /* ===================== GRACEFUL SHUTDOWN ===================== */
 
 function shutdown(signal) {
-
   if (shuttingDown) {
     return;
   }
@@ -479,14 +501,13 @@ function shutdown(signal) {
   stopTimers.clear();
 
   /*
-   * Stop accepting healthcheck requests.
+   * Close the healthcheck server.
    */
   if (httpServer) {
     httpServer.close(() => {
 
       /*
-       * Destroy HTTP connections after
-       * the server has closed.
+       * Destroy HTTP agents.
        */
       pterodactylAgent.destroy();
       discordAgent.destroy();
@@ -531,8 +552,13 @@ console.log(
   `${FORCE_KILL_GRACE_SECONDS}s`
 );
 
+/*
+ * Self-scheduling watchdog loop.
+ *
+ * The next iteration does not start until the
+ * previous iteration has completely finished.
+ */
 async function startLoop() {
-
   while (!shuttingDown) {
 
     const start = Date.now();
@@ -547,12 +573,6 @@ async function startLoop() {
       );
     }
 
-    /*
-     * Wait CHECK_INTERVAL seconds AFTER
-     * the previous loop has finished.
-     *
-     * This means loops can never overlap.
-     */
     const elapsed =
       (Date.now() - start) / 1000;
 
