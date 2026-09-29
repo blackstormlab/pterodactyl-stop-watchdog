@@ -720,6 +720,44 @@ async function monitorServer(serverId) {
 
 /* ===================== WATCHDOG LOOP ===================== */
 
+async function logPeriodicStatus() {
+  const timestamp = new Date().toISOString();
+
+  console.log(
+    `\n📋 [${timestamp}] 15-minute connection/status check`
+  );
+
+  let connectionOk = true;
+
+  for (const serverId of SERVERS) {
+    try {
+      const [state, name] = await Promise.all([
+        getServerState(serverId),
+        getServerName(serverId)
+      ]);
+
+      console.log(
+        `[${name} | ${serverId}] ` +
+        `📡 Panel connected | Status: ${state}`
+      );
+    } catch (err) {
+      connectionOk = false;
+
+      console.error(
+        `[${serverId}] ` +
+        `❌ Panel connection/status check failed:`,
+        err.message
+      );
+    }
+  }
+
+  console.log(
+    connectionOk
+      ? `✅ Panel connection OK — all watched servers checked`
+      : `⚠️ Panel connection/status check had errors`
+  );
+}
+
 async function loop() {
   for (const serverId of SERVERS) {
     if (shuttingDown) {
@@ -862,6 +900,27 @@ console.log(
  * The next iteration does not start until the
  * previous iteration has completely finished.
  */
+const STATUS_LOG_INTERVAL = 15 * 60;
+
+async function startStatusLogLoop() {
+  while (!shuttingDown) {
+    await sleep(STATUS_LOG_INTERVAL);
+
+    if (shuttingDown) {
+      break;
+    }
+
+    try {
+      await logPeriodicStatus();
+    } catch (err) {
+      console.error(
+        "❌ Periodic status log error:",
+        err.message
+      );
+    }
+  }
+}
+
 async function startLoop() {
   while (!shuttingDown) {
     const start = Date.now();
@@ -895,3 +954,4 @@ async function startLoop() {
 }
 
 startLoop();
+startStatusLogLoop();
